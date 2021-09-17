@@ -12,7 +12,7 @@ import UIKit
     @objc optional func infiniteCollectionView(_ infiniteCollectionView: InfiniteCollectionView, didChangeCenteredIndexPath from: IndexPath?, to: IndexPath?)
 }
 
-open class InfiniteCollectionView: UICollectionView {
+open class InfiniteCollectionView: UICollectionView, UICollectionViewDelegate {
     
     lazy var dataSourceProxy = InfiniteCollectionViewDataSourceProxy(collectionView: self)
     lazy var delegateProxy = InfiniteCollectionViewDelegateProxy(collectionView: self)
@@ -114,6 +114,48 @@ open class InfiniteCollectionView: UICollectionView {
         super.layoutSubviews()
         self.updateLayoutIfNeeded()
     }
+    
+    func updateLayoutIfNeeded() {
+        self.loopCollectionViewIfNeeded()
+        self.centerCollectionViewIfNeeded()
+        
+        let preferredVisibleIndexPath = infiniteLayout.preferredVisibleLayoutAttributes()?.indexPath
+        if self.centeredIndexPath != preferredVisibleIndexPath {
+            let previousCenteredIndexPath = self.centeredIndexPath
+            self.centeredIndexPath = preferredVisibleIndexPath
+            self.infiniteDelegate?.infiniteCollectionView?(self, didChangeCenteredIndexPath: previousCenteredIndexPath, to: self.centeredIndexPath)
+        }
+    }
+    
+    // MARK: Loop
+    func loopCollectionViewIfNeeded() {
+        self.infiniteLayout.loopCollectionViewIfNeeded()
+    }
+    
+    open func scrollViewDidScroll(_ scrollView: UIScrollView) {
+        delegateProxy.delegate?.scrollViewDidScroll?(scrollView)
+        self.updateLayoutIfNeeded()
+    }
+    
+    // MARK: Paging
+    func centerCollectionViewIfNeeded() {
+        guard isItemPagingEnabled,
+            !self.isDragging && !self.isDecelerating else {
+                return
+        }
+        guard self._contentSize != self.contentSize else {
+            return
+        }
+        self._contentSize = self.contentSize
+        self.infiniteLayout.centerCollectionViewIfNeeded(indexPath: self.preferredCenteredIndexPath)
+    }
+    
+    open func scrollViewWillEndDragging(_ scrollView: UIScrollView, withVelocity velocity: CGPoint, targetContentOffset: UnsafeMutablePointer<CGPoint>) {
+        if isItemPagingEnabled {
+            self.infiniteLayout.centerCollectionView(withVelocity: velocity, targetContentOffset: targetContentOffset)
+        }
+        self.delegateProxy.delegate?.scrollViewWillEndDragging?(scrollView, withVelocity: velocity, targetContentOffset: targetContentOffset)
+    }
 }
 
 // MARK: DataSource
@@ -159,50 +201,5 @@ extension InfiniteCollectionView: UICollectionViewDataSource {
     
     public func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
         fatalError("collectionView dataSource is required")
-    }
-}
-
-extension InfiniteCollectionView: UICollectionViewDelegate {
-    
-    func updateLayoutIfNeeded() {
-        self.loopCollectionViewIfNeeded()
-        self.centerCollectionViewIfNeeded()
-        
-        let preferredVisibleIndexPath = infiniteLayout.preferredVisibleLayoutAttributes()?.indexPath
-        if self.centeredIndexPath != preferredVisibleIndexPath {
-            let previousCenteredIndexPath = self.centeredIndexPath
-            self.centeredIndexPath = preferredVisibleIndexPath
-            self.infiniteDelegate?.infiniteCollectionView?(self, didChangeCenteredIndexPath: previousCenteredIndexPath, to: self.centeredIndexPath)
-        }
-    }
-    
-    // MARK: Loop
-    func loopCollectionViewIfNeeded() {
-        self.infiniteLayout.loopCollectionViewIfNeeded()
-    }
-    
-    public func scrollViewDidScroll(_ scrollView: UIScrollView) {
-        delegateProxy.delegate?.scrollViewDidScroll?(scrollView)
-        self.updateLayoutIfNeeded()
-    }
-    
-    // MARK: Paging
-    func centerCollectionViewIfNeeded() {
-        guard isItemPagingEnabled,
-            !self.isDragging && !self.isDecelerating else {
-                return
-        }
-        guard self._contentSize != self.contentSize else {
-            return
-        }
-        self._contentSize = self.contentSize
-        self.infiniteLayout.centerCollectionViewIfNeeded(indexPath: self.preferredCenteredIndexPath)
-    }
-    
-    public func scrollViewWillEndDragging(_ scrollView: UIScrollView, withVelocity velocity: CGPoint, targetContentOffset: UnsafeMutablePointer<CGPoint>) {
-        if isItemPagingEnabled {
-            self.infiniteLayout.centerCollectionView(withVelocity: velocity, targetContentOffset: targetContentOffset)
-        }
-        self.delegateProxy.delegate?.scrollViewWillEndDragging?(scrollView, withVelocity: velocity, targetContentOffset: targetContentOffset)
     }
 }
